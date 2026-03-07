@@ -9,7 +9,7 @@ function extractMessages(mapping: Record<string, MappingNode>, currentNode: stri
   let nodeId: string | null = currentNode
 
   while (nodeId) {
-    const node = mapping[nodeId]
+    const node: MappingNode | undefined = mapping[nodeId]
     if (!node) break
 
     if (node.message && node.message.content) {
