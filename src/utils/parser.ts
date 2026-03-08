@@ -4,7 +4,11 @@ import type { RawConversation, ParsedConversation, ParsedMessage, MappingNode } 
  * Extract linear message list from the mapping tree.
  * Start at current_node, walk up via parent, then reverse.
  */
-function extractMessages(mapping: Record<string, MappingNode>, currentNode: string): ParsedMessage[] {
+function extractMessages(
+  mapping: Record<string, MappingNode>,
+  currentNode: string,
+  sourceFile: string,
+): ParsedMessage[] {
   const ordered: ParsedMessage[] = []
   let nodeId: string | null = currentNode
 
@@ -35,6 +39,7 @@ function extractMessages(mapping: Record<string, MappingNode>, currentNode: stri
           authorName: message.author.name,
           text,
           createTime: message.create_time,
+          sourceFile,
         })
       }
     }
@@ -48,34 +53,43 @@ function extractMessages(mapping: Record<string, MappingNode>, currentNode: stri
 /**
  * Parse a single raw conversation into our app format.
  */
-function parseConversation(raw: RawConversation): ParsedConversation {
+function parseConversation(raw: RawConversation, sourceFile: string): ParsedConversation {
   return {
     id: raw.conversation_id,
     title: raw.title || 'Untitled',
     createTime: raw.create_time,
     updateTime: raw.update_time,
     gizmoId: raw.gizmo_id,
-    messages: extractMessages(raw.mapping, raw.current_node),
+    sourceFile,
+    messages: extractMessages(raw.mapping, raw.current_node, sourceFile),
   }
 }
 
 /**
- * Deduplicate by conversation_id — keep the one with the latest update_time.
- * Then parse all into our app format.
+ * A tagged array: the raw conversations plus the filename they came from.
  */
-export function parseAndDeduplicateConversations(rawArrays: RawConversation[][]): ParsedConversation[] {
-  const map = new Map<string, RawConversation>()
+export interface TaggedRawArray {
+  fileName: string
+  conversations: RawConversation[]
+}
 
-  for (const arr of rawArrays) {
-    for (const conv of arr) {
+/**
+ * Deduplicate by conversation_id — keep the one with the latest update_time.
+ * Then parse all into our app format, tagging each with its source file.
+ */
+export function parseAndDeduplicateConversations(tagged: TaggedRawArray[]): ParsedConversation[] {
+  const map = new Map<string, { raw: RawConversation; fileName: string }>()
+
+  for (const { fileName, conversations } of tagged) {
+    for (const conv of conversations) {
       const existing = map.get(conv.conversation_id)
-      if (!existing || conv.update_time > existing.update_time) {
-        map.set(conv.conversation_id, conv)
+      if (!existing || conv.update_time > existing.raw.update_time) {
+        map.set(conv.conversation_id, { raw: conv, fileName })
       }
     }
   }
 
   return Array.from(map.values())
-    .map(parseConversation)
+    .map(({ raw, fileName }) => parseConversation(raw, fileName))
     .sort((a, b) => b.updateTime - a.updateTime)
 }

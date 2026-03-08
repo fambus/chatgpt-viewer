@@ -49,6 +49,7 @@ export interface ParsedMessage {
   authorName: string | null
   text: string
   createTime: number | null
+  sourceFile: string
 }
 
 export interface ParsedConversation {
@@ -57,6 +58,7 @@ export interface ParsedConversation {
   createTime: number
   updateTime: number
   gizmoId: string | null
+  sourceFile: string
   messages: ParsedMessage[]
 }
 

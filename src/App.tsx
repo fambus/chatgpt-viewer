@@ -4,7 +4,7 @@ import Sidebar from './components/Sidebar'
 import ChatView from './components/ChatView'
 
 function AppContent() {
-  const { filesLoaded, hydrating, clearData, conversations } = useChat()
+  const { filesLoaded, hydrating } = useChat()
 
   // Still checking IndexedDB — show a brief spinner
   if (hydrating) {
@@ -29,21 +29,7 @@ function AppContent() {
   return (
     <div className="flex h-screen">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 min-h-0">
-        {/* Thin top bar with stats + clear button */}
-        <div className="flex items-center justify-between px-4 py-1.5 bg-[#171717] border-b border-[#2a2a2a] flex-shrink-0">
-          <span className="text-xs text-gray-500">
-            {conversations.length} conversation{conversations.length !== 1 ? 's' : ''} loaded
-          </span>
-          <button
-            onClick={clearData}
-            className="text-xs text-gray-500 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-[#2a2a2a]"
-          >
-            Clear data & re-upload
-          </button>
-        </div>
-        <ChatView />
-      </div>
+      <ChatView />
     </div>
   )
 }
