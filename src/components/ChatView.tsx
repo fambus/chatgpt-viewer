@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useChat } from '../store/ChatContext'
 import MessageBubble from './MessageBubble'
 import ExportBar from './ExportBar'
+import ExtractMessages from './ExtractMessages'
 
 function formatFullDate(ts: number): string {
   return new Date(ts * 1000).toLocaleDateString('en-US', {
@@ -22,6 +24,7 @@ export default function ChatView() {
     showSourceFile,
     setShowSourceFile,
   } = useChat()
+  const [showExtract, setShowExtract] = useState(false)
 
   if (!selectedConversation) {
     return (
@@ -48,6 +51,18 @@ export default function ChatView() {
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0">
+          {/* Extract my messages */}
+          <button
+            onClick={() => setShowExtract(true)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#10a37f] bg-[#2f2f2f] hover:bg-[#2f2f2f]/80 px-3 py-1.5 rounded-lg transition-colors"
+            title="Extract all your messages grouped by chat"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            My Messages
+          </button>
+
           {/* Source file toggle */}
           <button
             onClick={() => setShowSourceFile(!showSourceFile)}
@@ -98,6 +113,9 @@ export default function ChatView() {
 
       {/* Export bar */}
       <ExportBar />
+
+      {/* Extract messages modal */}
+      {showExtract && <ExtractMessages onClose={() => setShowExtract(false)} />}
     </div>
   )
 }

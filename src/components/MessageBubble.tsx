@@ -1,10 +1,27 @@
-import { memo, useState, useCallback } from 'react'
+import { memo, useState, useCallback, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import remarkGfm from 'remark-gfm'
 import type { ParsedMessage } from '../types/chat'
 import { stripCitations } from '../utils/cleanText'
+import type { SyntaxHighlighterProps } from 'react-syntax-highlighter'
+
+type HighlighterComponent = React.ComponentType<SyntaxHighlighterProps>
+let cachedHighlighter: { Component: HighlighterComponent; style: Record<string, React.CSSProperties> } | null = null
+let loadPromise: Promise<typeof cachedHighlighter> | null = null
+
+function getHighlighter() {
+  if (cachedHighlighter) return Promise.resolve(cachedHighlighter)
+  if (!loadPromise) {
+    loadPromise = Promise.all([
+      import('react-syntax-highlighter').then(m => m.Prism),
+      import('react-syntax-highlighter/dist/esm/styles/prism').then(m => m.vscDarkPlus),
+    ]).then(([Component, style]) => {
+      cachedHighlighter = { Component, style }
+      return cachedHighlighter
+    })
+  }
+  return loadPromise
+}
 
 interface Props {
   message: ParsedMessage
@@ -77,6 +94,38 @@ function ToolPill({ name }: { name: string | null }) {
   )
 }
 
+// ─── Lazy-loaded code block ─────────────────────────────────────
+function CodeBlock({ language, code }: { language: string; code: string }) {
+  const [hl, setHl] = useState(cachedHighlighter)
+
+  useEffect(() => {
+    if (!hl) getHighlighter().then(setHl)
+  }, [hl])
+
+  return (
+    <div className="my-3 rounded-lg overflow-hidden border border-[#333]">
+      <div className="flex items-center justify-between bg-[#1a1a1a] px-4 py-2 border-b border-[#333]">
+        <span className="text-xs text-gray-400 font-mono">{language}</span>
+        <CopyButton code={code} />
+      </div>
+      {hl ? (
+        <hl.Component
+          style={hl.style}
+          language={language}
+          PreTag="div"
+          showLineNumbers
+          lineNumberStyle={{ color: '#555', fontSize: '12px', paddingRight: '1em', userSelect: 'none' }}
+          customStyle={{ margin: 0, padding: '1rem', background: '#1e1e1e', fontSize: '13px', lineHeight: '1.6' }}
+        >
+          {code}
+        </hl.Component>
+      ) : (
+        <pre className="p-4 bg-[#1e1e1e] text-sm text-gray-300 overflow-x-auto"><code>{code}</code></pre>
+      )}
+    </div>
+  )
+}
+
 // ─── Markdown renderer ──────────────────────────────────────────
 const markdownComponents = {
   code({ className, children, ...props }: { className?: string; children?: React.ReactNode; [key: string]: unknown }) {
@@ -84,24 +133,7 @@ const markdownComponents = {
     const codeString = String(children).replace(/\n$/, '')
 
     if (match) {
-      return (
-        <div className="my-3 rounded-lg overflow-hidden border border-[#333]">
-          <div className="flex items-center justify-between bg-[#1a1a1a] px-4 py-2 border-b border-[#333]">
-            <span className="text-xs text-gray-400 font-mono">{match[1]}</span>
-            <CopyButton code={codeString} />
-          </div>
-          <SyntaxHighlighter
-            style={vscDarkPlus}
-            language={match[1]}
-            PreTag="div"
-            showLineNumbers
-            lineNumberStyle={{ color: '#555', fontSize: '12px', paddingRight: '1em', userSelect: 'none' }}
-            customStyle={{ margin: 0, padding: '1rem', background: '#1e1e1e', fontSize: '13px', lineHeight: '1.6' }}
-          >
-            {codeString}
-          </SyntaxHighlighter>
-        </div>
-      )
+      return <CodeBlock language={match[1]} code={codeString} />
     }
 
     return (

@@ -51,8 +51,12 @@ function ConversationRow({ conv }: { conv: ParsedConversation }) {
     selectedId,
     selectConversation,
     deleteConversation,
+    archiveConversation,
+    unarchiveConversation,
     togglePinChat,
     pinnedChatIds,
+    archivedChatIds,
+    showArchived,
     getChatDisplayTitle,
     sidebarSelectMode,
     selectedChatIds,
@@ -60,6 +64,7 @@ function ConversationRow({ conv }: { conv: ParsedConversation }) {
   } = useChat()
   const [editingTitle, setEditingTitle] = useState(false)
   const isPinned = pinnedChatIds.has(conv.id)
+  const isArchived = archivedChatIds.has(conv.id)
   const isActive = selectedId === conv.id
   const isChecked = selectedChatIds.has(conv.id)
   const displayTitle = getChatDisplayTitle(conv)
@@ -123,11 +128,26 @@ function ConversationRow({ conv }: { conv: ParsedConversation }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
           </button>
-          {/* Delete */}
+          {/* Archive / Unarchive */}
           <button
-            onClick={e => { e.stopPropagation(); deleteConversation(conv.id) }}
+            onClick={e => { e.stopPropagation(); isArchived ? unarchiveConversation(conv.id) : archiveConversation(conv.id) }}
+            className={`p-1 transition-colors ${isArchived ? 'text-amber-500 hover:text-amber-400' : 'text-gray-500 hover:text-amber-500'}`}
+            title={isArchived ? 'Unarchive' : 'Archive'}
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+          </button>
+          {/* Delete (permanent) */}
+          <button
+            onClick={e => {
+              e.stopPropagation()
+              if (showArchived || confirm('Permanently delete this chat? Use archive to hide it instead.')) {
+                deleteConversation(conv.id)
+              }
+            }}
             className="p-1 text-gray-500 hover:text-red-400 transition-colors"
-            title="Delete"
+            title="Delete permanently"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -148,10 +168,13 @@ export default function Sidebar() {
     clearData,
     filesLoaded,
     conversations,
+    showArchived,
+    setShowArchived,
     sidebarSelectMode,
     setSidebarSelectMode,
     selectedChatIds,
     deleteSelectedChats,
+    archiveSelectedChats,
     clearChatSelection,
   } = useChat()
   const [editingGroup, setEditingGroup] = useState<string | null>(null)
@@ -187,29 +210,51 @@ export default function Sidebar() {
           />
         </div>
 
-        {/* Select mode toggle */}
+        {/* Select mode + archive toggle */}
         <div className="flex items-center justify-between">
-          <button
-            onClick={() => {
-              if (sidebarSelectMode) clearChatSelection()
-              else setSidebarSelectMode(true)
-            }}
-            className={`text-[11px] px-2 py-1 rounded transition-colors ${
-              sidebarSelectMode
-                ? 'bg-[#10a37f]/20 text-[#10a37f]'
-                : 'text-gray-500 hover:text-gray-300 hover:bg-[#2f2f2f]'
-            }`}
-          >
-            {sidebarSelectMode ? 'Cancel' : 'Select'}
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => {
+                if (sidebarSelectMode) clearChatSelection()
+                else setSidebarSelectMode(true)
+              }}
+              className={`text-[11px] px-2 py-1 rounded transition-colors ${
+                sidebarSelectMode
+                  ? 'bg-[#10a37f]/20 text-[#10a37f]'
+                  : 'text-gray-500 hover:text-gray-300 hover:bg-[#2f2f2f]'
+              }`}
+            >
+              {sidebarSelectMode ? 'Cancel' : 'Select'}
+            </button>
+            <button
+              onClick={() => setShowArchived(!showArchived)}
+              className={`text-[11px] px-2 py-1 rounded transition-colors ${
+                showArchived
+                  ? 'bg-amber-500/20 text-amber-400'
+                  : 'text-gray-500 hover:text-gray-300 hover:bg-[#2f2f2f]'
+              }`}
+            >
+              {showArchived ? 'Active' : 'Archived'}
+            </button>
+          </div>
 
           {sidebarSelectMode && selectedChatIds.size > 0 && (
-            <button
-              onClick={deleteSelectedChats}
-              className="text-[11px] px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
-            >
-              Delete {selectedChatIds.size}
-            </button>
+            <div className="flex items-center gap-1">
+              {!showArchived && (
+                <button
+                  onClick={archiveSelectedChats}
+                  className="text-[11px] px-2 py-1 rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors"
+                >
+                  Archive {selectedChatIds.size}
+                </button>
+              )}
+              <button
+                onClick={deleteSelectedChats}
+                className="text-[11px] px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+              >
+                Delete {selectedChatIds.size}
+              </button>
+            </div>
           )}
         </div>
       </div>

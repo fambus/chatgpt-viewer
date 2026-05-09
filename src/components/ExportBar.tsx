@@ -1,9 +1,8 @@
 import { useState, useCallback } from 'react'
-import { jsPDF } from 'jspdf'
 import { useChat } from '../store/ChatContext'
 import { stripCitations } from '../utils/cleanText'
 
-function getSelectedText(title: string, messages: { role: string; text: string }[]): string {
+function formatExportText(title: string, messages: { role: string; text: string }[]): string {
   const header = `# ${title}\n\n`
   const body = messages
     .map(m => {
@@ -18,86 +17,86 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, '-').substring(0, 80)
 }
 
-export default function ExportBar() {
-  const { selectedConversation, selectedMessageIds, clearSelection } = useChat()
+async function exportPdf(title: string, messages: { role: string; text: string }[]) {
+  const { jsPDF } = await import('jspdf')
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const margin = 15
+  const maxWidth = pageWidth - margin * 2
+  let y = margin
+
+  const addText = (text: string, fontSize: number, bold = false) => {
+    doc.setFontSize(fontSize)
+    doc.setFont('helvetica', bold ? 'bold' : 'normal')
+    const lines = doc.splitTextToSize(text, maxWidth)
+    for (const line of lines) {
+      if (y > 275) {
+        doc.addPage()
+        y = margin
+      }
+      doc.text(line, margin, y)
+      y += fontSize * 0.45
+    }
+  }
+
+  addText(title, 16, true)
+  y += 4
+
+  for (const msg of messages) {
+    const label = msg.role === 'user' ? 'User' : 'ChatGPT'
+    addText(`${label}:`, 11, true)
+    y += 1
+    addText(stripCitations(msg.text), 10)
+    y += 6
+  }
+
+  doc.save(`${sanitizeFileName(title)}.pdf`)
+}
+
+function ExportButtons({ messages, title, label }: {
+  messages: { role: string; text: string }[]
+  title: string
+  label: string
+}) {
   const [copied, setCopied] = useState(false)
 
-  const selected = selectedConversation?.messages.filter(m => selectedMessageIds.has(m.id)) ?? []
-
   const handleCopy = useCallback(async () => {
-    if (!selectedConversation) return
-    const text = getSelectedText(selectedConversation.title, selected)
-    await navigator.clipboard.writeText(text)
+    const text = formatExportText(title, messages)
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }, [selectedConversation, selected])
+  }, [title, messages])
 
   const handleTxt = useCallback(() => {
-    if (!selectedConversation) return
-    const text = getSelectedText(selectedConversation.title, selected)
+    const text = formatExportText(title, messages)
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${sanitizeFileName(selectedConversation.title)}.txt`
+    a.download = `${sanitizeFileName(title)}.txt`
     a.click()
     URL.revokeObjectURL(url)
-  }, [selectedConversation, selected])
+  }, [title, messages])
 
   const handlePdf = useCallback(() => {
-    if (!selectedConversation) return
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const margin = 15
-    const maxWidth = pageWidth - margin * 2
-    let y = margin
-
-    const addText = (text: string, fontSize: number, bold = false) => {
-      doc.setFontSize(fontSize)
-      doc.setFont('helvetica', bold ? 'bold' : 'normal')
-      const lines = doc.splitTextToSize(text, maxWidth)
-      for (const line of lines) {
-        if (y > 275) {
-          doc.addPage()
-          y = margin
-        }
-        doc.text(line, margin, y)
-        y += fontSize * 0.45
-      }
-    }
-
-    // Title
-    addText(selectedConversation.title, 16, true)
-    y += 4
-
-    // Messages
-    for (const msg of selected) {
-      const label = msg.role === 'user' ? 'User' : 'ChatGPT'
-      addText(`${label}:`, 11, true)
-      y += 1
-      addText(stripCitations(msg.text), 10)
-      y += 6
-    }
-
-    doc.save(`${sanitizeFileName(selectedConversation.title)}.pdf`)
-  }, [selectedConversation, selected])
-
-  if (!selectedConversation || selectedMessageIds.size === 0) return null
+    exportPdf(title, messages)
+  }, [title, messages])
 
   return (
-    <div className="sticky bottom-0 bg-[#1a1a1a] border-t border-[#333] px-6 py-3 flex items-center justify-between flex-shrink-0">
-      <span className="text-sm text-gray-400">
-        {selectedMessageIds.size} message{selectedMessageIds.size > 1 ? 's' : ''} selected
-      </span>
+    <>
+      <span className="text-sm text-gray-400">{label}</span>
       <div className="flex gap-2">
-        <button
-          onClick={clearSelection}
-          className="text-sm text-gray-400 hover:text-gray-200 px-3 py-1.5 rounded-lg hover:bg-[#2f2f2f] transition-colors"
-        >
-          Clear
-        </button>
-
-        {/* Copy */}
         <button
           onClick={handleCopy}
           className="text-sm bg-[#10a37f] hover:bg-[#0d8a6b] text-white px-4 py-1.5 rounded-lg transition-colors flex items-center gap-2"
@@ -119,7 +118,6 @@ export default function ExportBar() {
           )}
         </button>
 
-        {/* TXT */}
         <button
           onClick={handleTxt}
           className="text-sm bg-[#2f2f2f] hover:bg-[#444] text-gray-200 px-4 py-1.5 rounded-lg transition-colors flex items-center gap-2"
@@ -130,7 +128,6 @@ export default function ExportBar() {
           TXT
         </button>
 
-        {/* PDF */}
         <button
           onClick={handlePdf}
           className="text-sm bg-[#2f2f2f] hover:bg-[#444] text-gray-200 px-4 py-1.5 rounded-lg transition-colors flex items-center gap-2"
@@ -141,6 +138,42 @@ export default function ExportBar() {
           PDF
         </button>
       </div>
+    </>
+  )
+}
+
+export default function ExportBar() {
+  const { selectedConversation, selectedMessageIds, clearSelection } = useChat()
+
+  if (!selectedConversation) return null
+
+  const selected = selectedConversation.messages.filter(m => selectedMessageIds.has(m.id))
+  const allVisibleMessages = selectedConversation.messages.filter(m => m.role !== 'system')
+  const hasSelection = selected.length > 0
+
+  return (
+    <div className="sticky bottom-0 bg-[#1a1a1a] border-t border-[#333] px-6 py-3 flex items-center justify-between flex-shrink-0">
+      {hasSelection ? (
+        <>
+          <ExportButtons
+            messages={selected}
+            title={selectedConversation.title}
+            label={`${selected.length} message${selected.length > 1 ? 's' : ''} selected`}
+          />
+          <button
+            onClick={clearSelection}
+            className="text-sm text-gray-400 hover:text-gray-200 px-3 py-1.5 rounded-lg hover:bg-[#2f2f2f] transition-colors ml-2"
+          >
+            Clear
+          </button>
+        </>
+      ) : (
+        <ExportButtons
+          messages={allVisibleMessages}
+          title={selectedConversation.title}
+          label={`Export full chat (${allVisibleMessages.length} messages)`}
+        />
+      )}
     </div>
   )
 }

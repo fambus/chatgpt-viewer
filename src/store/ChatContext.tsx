@@ -10,6 +10,7 @@ const DELETED_CONVS_KEY = 'deleted-conversation-ids'
 const DELETED_MSGS_KEY = 'deleted-message-ids'
 const CHAT_NAMES_KEY = 'chat-custom-names'
 const PINNED_KEY = 'pinned-chat-ids'
+const ARCHIVED_KEY = 'archived-conversation-ids'
 
 // ─── types ──────────────────────────────────────────────────────
 interface ChatContextValue {
@@ -22,6 +23,8 @@ interface ChatContextValue {
   projectNames: Record<string, string>
   chatNames: Record<string, string>
   pinnedChatIds: Set<string>
+  archivedChatIds: Set<string>
+  showArchived: boolean
   filesLoaded: boolean
   hydrating: boolean
   showSourceFile: boolean
@@ -41,6 +44,10 @@ interface ChatContextValue {
   renameProject: (gizmoId: string, name: string) => void
   renameChat: (convId: string, name: string) => void
   togglePinChat: (convId: string) => void
+  archiveConversation: (id: string) => void
+  unarchiveConversation: (id: string) => void
+  archiveSelectedChats: () => void
+  setShowArchived: (v: boolean) => void
   clearData: () => Promise<void>
   deleteConversation: (id: string) => void
   deleteSelectedChats: () => void
@@ -70,6 +77,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [showSourceFile, setShowSourceFile] = useState(false)
   const [deletedConvIds, setDeletedConvIds] = useState<Set<string>>(new Set())
   const [deletedMsgIds, setDeletedMsgIds] = useState<Set<string>>(new Set())
+  const [archivedChatIds, setArchivedChatIds] = useState<Set<string>>(new Set())
+  const [showArchived, setShowArchived] = useState(false)
   // sidebar multi-select (UI-only, not persisted)
   const [sidebarSelectMode, setSidebarSelectMode] = useState(false)
   const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(new Set())
@@ -93,6 +102,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const persistPinned = useCallback((s: Set<string>) => {
     store.setItem(PINNED_KEY, [...s]).catch(console.error)
   }, [])
+  const persistArchived = useCallback((s: Set<string>) => {
+    store.setItem(ARCHIVED_KEY, [...s]).catch(console.error)
+  }, [])
 
   // ── Hydrate from IndexedDB on mount ──
   useEffect(() => {
@@ -103,8 +115,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       store.getItem<string[]>(DELETED_MSGS_KEY),
       store.getItem<Record<string, string>>(CHAT_NAMES_KEY),
       store.getItem<string[]>(PINNED_KEY),
+      store.getItem<string[]>(ARCHIVED_KEY),
     ])
-      .then(([savedConvs, savedNames, savedDelConvs, savedDelMsgs, savedChatNames, savedPinned]) => {
+      .then(([savedConvs, savedNames, savedDelConvs, savedDelMsgs, savedChatNames, savedPinned, savedArchived]) => {
         if (savedConvs && savedConvs.length > 0) {
           setConversationsRaw(savedConvs)
           setFilesLoaded(true)
@@ -114,6 +127,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (savedDelMsgs) setDeletedMsgIds(new Set(savedDelMsgs))
         if (savedChatNames) setChatNames(savedChatNames)
         if (savedPinned) setPinnedChatIds(new Set(savedPinned))
+        if (savedArchived) setArchivedChatIds(new Set(savedArchived))
       })
       .catch(() => {})
       .finally(() => setHydrating(false))
@@ -127,10 +141,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setSelectedMessageIds(new Set())
     setDeletedConvIds(new Set())
     setDeletedMsgIds(new Set())
+    setArchivedChatIds(new Set())
     persistConvs(convs)
     persistDeletedConvs(new Set())
     persistDeletedMsgs(new Set())
-  }, [persistConvs, persistDeletedConvs, persistDeletedMsgs])
+    persistArchived(new Set())
+  }, [persistConvs, persistDeletedConvs, persistDeletedMsgs, persistArchived])
 
   // ── Wipe all data ──
   const clearData = useCallback(async () => {
@@ -145,6 +161,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setPinnedChatIds(new Set())
     setDeletedConvIds(new Set())
     setDeletedMsgIds(new Set())
+    setArchivedChatIds(new Set())
     setSidebarSelectMode(false)
     setSelectedChatIds(new Set())
   }, [])
@@ -208,6 +225,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     })
   }, [persistPinned])
 
+  const archiveConversation = useCallback((id: string) => {
+    setArchivedChatIds(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      persistArchived(next)
+      return next
+    })
+    if (selectedId === id) setSelectedId(null)
+  }, [selectedId, persistArchived])
+
+  const unarchiveConversation = useCallback((id: string) => {
+    setArchivedChatIds(prev => {
+      const next = new Set(prev)
+      next.delete(id)
+      persistArchived(next)
+      return next
+    })
+  }, [persistArchived])
+
+  const archiveSelectedChats = useCallback(() => {
+    setArchivedChatIds(prev => {
+      const next = new Set(prev)
+      for (const id of selectedChatIds) next.add(id)
+      persistArchived(next)
+      return next
+    })
+    if (selectedId && selectedChatIds.has(selectedId)) setSelectedId(null)
+    setSelectedChatIds(new Set())
+    setSidebarSelectMode(false)
+  }, [selectedChatIds, selectedId, persistArchived])
+
   const selectConversation = useCallback((id: string) => {
     setSelectedId(id)
     setSelectedMessageIds(new Set())
@@ -256,6 +304,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // ── Derived: visible conversations (exclude deleted, sort pinned first) ──
   const visibleConversations = conversations
     .filter(c => !deletedConvIds.has(c.id))
+    .filter(c => showArchived ? archivedChatIds.has(c.id) : !archivedChatIds.has(c.id))
     .sort((a, b) => {
       const aPinned = pinnedChatIds.has(a.id) ? 1 : 0
       const bPinned = pinnedChatIds.has(b.id) ? 1 : 0
@@ -322,6 +371,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         projectNames,
         chatNames,
         pinnedChatIds,
+        archivedChatIds,
+        showArchived,
         filesLoaded,
         hydrating,
         showSourceFile,
@@ -338,6 +389,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         renameProject,
         renameChat,
         togglePinChat,
+        archiveConversation,
+        unarchiveConversation,
+        archiveSelectedChats,
+        setShowArchived,
         clearData,
         deleteConversation,
         deleteSelectedChats,
