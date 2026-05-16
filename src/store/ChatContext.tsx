@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import localforage from 'localforage'
-import type { ParsedConversation, ProjectGroup } from '../types/chat'
+import type { ParsedConversation, ParsedNote, ProjectGroup } from '../types/chat'
 
 // ─── localforage instance ───────────────────────────────────────
 const store = localforage.createInstance({ name: 'chatgpt-viewer', storeName: 'conversations' })
 const CONV_KEY = 'parsed-conversations'
+const NOTES_KEY = 'parsed-notes'
 const NAMES_KEY = 'project-names'
 const DELETED_CONVS_KEY = 'deleted-conversation-ids'
 const DELETED_MSGS_KEY = 'deleted-message-ids'
@@ -13,10 +14,15 @@ const PINNED_KEY = 'pinned-chat-ids'
 const ARCHIVED_KEY = 'archived-conversation-ids'
 
 // ─── types ──────────────────────────────────────────────────────
+export type ViewMode = 'chats' | 'notes'
+
 interface ChatContextValue {
   // state
   conversations: ParsedConversation[]
+  notes: ParsedNote[]
   selectedId: string | null
+  selectedNoteId: string | null
+  viewMode: ViewMode
   searchQuery: string
   roleFilter: 'all' | 'user' | 'assistant'
   selectedMessageIds: Set<string>
@@ -33,10 +39,15 @@ interface ChatContextValue {
   selectedChatIds: Set<string>
   // derived
   selectedConversation: ParsedConversation | null
+  selectedNote: ParsedNote | null
   filteredConversations: ParsedConversation[]
+  filteredNotes: ParsedNote[]
   // actions
   setConversations: (convs: ParsedConversation[]) => void
+  setNotes: (notes: ParsedNote[]) => void
+  setViewMode: (mode: ViewMode) => void
   selectConversation: (id: string) => void
+  selectNote: (id: string) => void
   setSearchQuery: (q: string) => void
   setRoleFilter: (f: 'all' | 'user' | 'assistant') => void
   toggleMessageSelection: (id: string) => void
@@ -66,6 +77,9 @@ const ChatContext = createContext<ChatContextValue | null>(null)
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [conversations, setConversationsRaw] = useState<ParsedConversation[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [notesRaw, setNotesRaw] = useState<ParsedNote[]>([])
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('chats')
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'user' | 'assistant'>('all')
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set())
@@ -86,6 +100,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // ── Persist helpers ──
   const persistConvs = useCallback((c: ParsedConversation[]) => {
     store.setItem(CONV_KEY, c).catch(console.error)
+  }, [])
+  const persistNotes = useCallback((n: ParsedNote[]) => {
+    store.setItem(NOTES_KEY, n).catch(console.error)
   }, [])
   const persistNames = useCallback((n: Record<string, string>) => {
     store.setItem(NAMES_KEY, n).catch(console.error)
@@ -110,6 +127,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     Promise.all([
       store.getItem<ParsedConversation[]>(CONV_KEY),
+      store.getItem<ParsedNote[]>(NOTES_KEY),
       store.getItem<Record<string, string>>(NAMES_KEY),
       store.getItem<string[]>(DELETED_CONVS_KEY),
       store.getItem<string[]>(DELETED_MSGS_KEY),
@@ -117,9 +135,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       store.getItem<string[]>(PINNED_KEY),
       store.getItem<string[]>(ARCHIVED_KEY),
     ])
-      .then(([savedConvs, savedNames, savedDelConvs, savedDelMsgs, savedChatNames, savedPinned, savedArchived]) => {
+      .then(([savedConvs, savedNotes, savedNames, savedDelConvs, savedDelMsgs, savedChatNames, savedPinned, savedArchived]) => {
         if (savedConvs && savedConvs.length > 0) {
           setConversationsRaw(savedConvs)
+          setFilesLoaded(true)
+        }
+        if (savedNotes && savedNotes.length > 0) {
+          setNotesRaw(savedNotes)
           setFilesLoaded(true)
         }
         if (savedNames) setProjectNames(savedNames)
@@ -148,12 +170,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     persistArchived(new Set())
   }, [persistConvs, persistDeletedConvs, persistDeletedMsgs, persistArchived])
 
+  // ── Set notes (from upload) ──
+  const setNotes = useCallback((notes: ParsedNote[]) => {
+    setNotesRaw(notes)
+    setFilesLoaded(true)
+    persistNotes(notes)
+  }, [persistNotes])
+
+  // ── Select a note ──
+  const selectNote = useCallback((id: string) => {
+    setSelectedNoteId(id)
+    setViewMode('notes')
+  }, [])
+
   // ── Wipe all data ──
   const clearData = useCallback(async () => {
     await store.clear()
     setConversationsRaw([])
+    setNotesRaw([])
     setFilesLoaded(false)
     setSelectedId(null)
+    setSelectedNoteId(null)
     setSelectedMessageIds(new Set())
     setSearchQuery('')
     setProjectNames({})
@@ -164,6 +201,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setArchivedChatIds(new Set())
     setSidebarSelectMode(false)
     setSelectedChatIds(new Set())
+    setViewMode('chats')
   }, [])
 
   // ── Delete a conversation ──
@@ -327,10 +365,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       let key: string
       if (conv.platform === 'claude') {
         key = '__claude__'
+      } else if (conv.platform === 'gemini') {
+        key = '__gemini__'
+      } else if (conv.platform === 'grok') {
+        key = '__grok__'
       } else if (conv.gizmoId?.startsWith('g-p-')) {
         key = conv.gizmoId
       } else {
-        key = '__general__'
+        key = '__chatgpt__'
       }
       if (!groupMap.has(key)) groupMap.set(key, [])
       groupMap.get(key)!.push(conv)
@@ -338,18 +380,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     const groups: ProjectGroup[] = []
 
-    const general = groupMap.get('__general__')
-    if (general) {
-      groups.push({ gizmoId: null, label: 'General', conversations: general })
-      groupMap.delete('__general__')
+    // Platform groups in order
+    const platformOrder: [string, string][] = [
+      ['__chatgpt__', 'ChatGPT'],
+      ['__gemini__', 'Gemini'],
+      ['__claude__', 'Claude'],
+      ['__grok__', 'Grok'],
+    ]
+
+    for (const [key, label] of platformOrder) {
+      const convs = groupMap.get(key)
+      if (convs) {
+        groups.push({ gizmoId: null, label, conversations: convs })
+        groupMap.delete(key)
+      }
     }
 
-    const claude = groupMap.get('__claude__')
-    if (claude) {
-      groups.push({ gizmoId: null, label: 'Claude', conversations: claude })
-      groupMap.delete('__claude__')
-    }
-
+    // Project groups (ChatGPT custom GPTs)
     for (const [gizmoId, convs] of groupMap) {
       groups.push({
         gizmoId,
@@ -360,6 +407,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     return groups
   }, [filteredConversations, projectNames])
+
+  // ── Filtered notes ──
+  const filteredNotes = notesRaw.filter(n => {
+    if (!searchQuery) return true
+    const q = searchQuery.toLowerCase()
+    if (n.title.toLowerCase().includes(q)) return true
+    return n.content.toLowerCase().includes(q)
+  })
+
+  // ── Selected note ──
+  const selectedNote = selectedNoteId ? notesRaw.find(n => n.id === selectedNoteId) || null : null
 
   // ── Selected conversation with deleted messages filtered out ──
   const selectedConversation = (() => {
@@ -377,7 +435,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     <ChatContext.Provider
       value={{
         conversations: visibleConversations,
+        notes: notesRaw,
         selectedId,
+        selectedNoteId,
+        viewMode,
         searchQuery,
         roleFilter,
         selectedMessageIds,
@@ -392,9 +453,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         sidebarSelectMode,
         selectedChatIds,
         selectedConversation,
+        selectedNote,
         filteredConversations,
+        filteredNotes,
         setConversations,
+        setNotes,
+        setViewMode,
         selectConversation,
+        selectNote,
         setSearchQuery,
         setRoleFilter,
         toggleMessageSelection,

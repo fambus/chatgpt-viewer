@@ -2,9 +2,10 @@ import { ChatProvider, useChat } from './store/ChatContext'
 import FileUploader from './components/FileUploader'
 import Sidebar from './components/Sidebar'
 import ChatView from './components/ChatView'
+import NoteView from './components/NoteView'
 
 function AppContent() {
-  const { filesLoaded, hydrating } = useChat()
+  const { filesLoaded, hydrating, viewMode } = useChat()
 
   // Still checking IndexedDB — show a brief spinner
   if (hydrating) {
@@ -29,7 +30,7 @@ function AppContent() {
   return (
     <div className="flex h-screen">
       <Sidebar />
-      <ChatView />
+      {viewMode === 'notes' ? <NoteView /> : <ChatView />}
     </div>
   )
 }

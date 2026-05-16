@@ -23,6 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
-# ChatGPT export data (private)
+# Personal export data (private)
 conversations*.json
 export_dump/
+claude/
+google/
+x/

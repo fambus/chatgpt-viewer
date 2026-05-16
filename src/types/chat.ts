@@ -1,4 +1,4 @@
-// Raw ChatGPT export types (matches conversations.json schema)
+// ─── Raw ChatGPT / Gemini export types (mapping tree format) ────
 
 export interface RawMessage {
   id: string
@@ -41,7 +41,7 @@ export interface RawConversation {
   [key: string]: unknown
 }
 
-// Raw Claude export types (matches Claude conversations.json schema)
+// ─── Raw Claude export types ────────────────────────────────────
 
 export interface ClaudeContentBlock {
   type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'token_budget'
@@ -71,7 +71,68 @@ export interface ClaudeRawConversation {
   chat_messages: ClaudeChatMessage[]
 }
 
-// Processed types used by the app
+// ─── Raw Grok export types ──────────────────────────────────────
+
+export interface GrokResponse {
+  _id: string
+  conversation_id: string
+  message: string
+  sender: 'human' | 'ASSISTANT'
+  create_time: { $date: { $numberLong: string } }
+  parent_response_id?: string | null
+  model?: string
+  [key: string]: unknown
+}
+
+export interface GrokConversation {
+  conversation: {
+    id: string
+    title: string
+    create_time: string
+    modify_time: string
+    [key: string]: unknown
+  }
+  responses: { response: GrokResponse; share_link: string | null }[]
+}
+
+export interface GrokExport {
+  conversations: GrokConversation[]
+  projects?: unknown[]
+  tasks?: unknown[]
+  media_posts?: unknown[]
+}
+
+// ─── Raw Google Keep export types ───────────────────────────────
+
+export interface KeepListItem {
+  text: string
+  isChecked: boolean
+  textHtml?: string
+}
+
+export interface KeepAnnotation {
+  description?: string
+  source?: string
+  title?: string
+  url?: string
+}
+
+export interface KeepRawNote {
+  color: string
+  isTrashed: boolean
+  isPinned: boolean
+  isArchived: boolean
+  title?: string
+  textContent?: string
+  textContentHtml?: string
+  listContent?: KeepListItem[]
+  annotations?: KeepAnnotation[]
+  labels?: { name: string }[]
+  userEditedTimestampUsec?: number
+  createdTimestampUsec?: number
+}
+
+// ─── Processed types used by the app ────────────────────────────
 
 export interface ParsedMessage {
   id: string
@@ -82,7 +143,7 @@ export interface ParsedMessage {
   sourceFile: string
 }
 
-export type Platform = 'chatgpt' | 'claude'
+export type Platform = 'chatgpt' | 'gemini' | 'claude' | 'grok'
 
 export interface ParsedConversation {
   id: string
@@ -95,8 +156,32 @@ export interface ParsedConversation {
   messages: ParsedMessage[]
 }
 
+// ─── Notes types ────────────────────────────────────────────────
+
+export type NoteSource = 'keep' | 'apple' | 'onenote' | 'notion' | 'other'
+
+export interface ParsedNote {
+  id: string
+  title: string
+  content: string
+  createdTime: number
+  editedTime: number
+  source: NoteSource
+  sourceFile: string
+  isPinned: boolean
+  isArchived: boolean
+  isTrashed: boolean
+  labels: string[]
+  listItems?: { text: string; checked: boolean }[]
+  color?: string
+}
+
+// ─── Grouping types ─────────────────────────────────────────────
+
 export interface ProjectGroup {
   gizmoId: string | null
   label: string
   conversations: ParsedConversation[]
 }
+
+export type DataCategory = 'ai' | 'notes'

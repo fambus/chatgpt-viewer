@@ -166,8 +166,29 @@ export default memo(function MessageBubble({ message, platform, isSelected, show
   if (message.role === 'tool') return <ToolPill name={message.authorName} />
 
   const isUser = message.role === 'user'
-  const isClaude = platform === 'claude'
   const cleanedText = stripCitations(message.text)
+
+  // Avatar colors per platform
+  const avatarConfig: Record<string, { bg: string; icon: React.ReactNode }> = {
+    chatgpt: {
+      bg: 'bg-[#10a37f]',
+      icon: <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M22.282 9.821a5.985 5.985 0 00-.516-4.91 6.046 6.046 0 00-6.51-2.9A6.065 6.065 0 0011.5.5a6.058 6.058 0 00-5.77 4.51 6.03 6.03 0 00-4.022 2.916 6.055 6.055 0 00.743 7.097 5.98 5.98 0 00.51 4.91 6.051 6.051 0 006.515 2.9A5.985 5.985 0 0013.5 24a6.056 6.056 0 005.77-4.51 6.034 6.034 0 004.023-2.916 6.052 6.052 0 00-.743-7.097z" /></svg>,
+    },
+    gemini: {
+      bg: 'bg-[#4285F4]',
+      icon: <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none"><path d="M12 2C12 2 14.5 7.5 17 10C19.5 12.5 22 12 22 12C22 12 19.5 12.5 17 15C14.5 17.5 12 22 12 22C12 22 9.5 17.5 7 15C4.5 12.5 2 12 2 12C2 12 4.5 12.5 7 10C9.5 7.5 12 2 12 2Z" fill="currentColor"/></svg>,
+    },
+    claude: {
+      bg: 'bg-[#D97757]',
+      icon: <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M4.709 15.955l4.72-2.755.08-.046 2.426-1.466-.08.046-4.72 2.755L4.71 15.955zm8.837-5.17l-1.085.654-.238-.396 1.085-.654.238.396zm-5.752 5.078l5.066-2.893.238.396-5.066 2.893-.238-.396zM14.118 6.74L8.093 10.283l-.238-.396 6.025-3.543.238.396zm3.167 5.736l-1.205.694-.238-.396 1.205-.694.238.396zM6.57 14.792l7.27-4.22.238.396-7.27 4.22-.238-.396z" /></svg>,
+    },
+    grok: {
+      bg: 'bg-[#1D1D1B]',
+      icon: <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>,
+    },
+  }
+
+  const avatar = avatarConfig[platform] || avatarConfig.chatgpt
 
   return (
     <div className="group/msg flex items-start py-4 px-2">
@@ -177,16 +198,8 @@ export default memo(function MessageBubble({ message, platform, isSelected, show
 
         {/* Assistant avatar */}
         {!isUser && (
-          <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${isClaude ? 'bg-[#D97757]' : 'bg-[#10a37f]'}`}>
-            {isClaude ? (
-              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M4.709 15.955l4.72-2.755.08-.046 2.426-1.466-.08.046-4.72 2.755L4.71 15.955zm8.837-5.17l-1.085.654-.238-.396 1.085-.654.238.396zm-5.752 5.078l5.066-2.893.238.396-5.066 2.893-.238-.396zM14.118 6.74L8.093 10.283l-.238-.396 6.025-3.543.238.396zm3.167 5.736l-1.205.694-.238-.396 1.205-.694.238.396zM6.57 14.792l7.27-4.22.238.396-7.27 4.22-.238-.396z" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M22.282 9.821a5.985 5.985 0 00-.516-4.91 6.046 6.046 0 00-6.51-2.9A6.065 6.065 0 0011.5.5a6.058 6.058 0 00-5.77 4.51 6.03 6.03 0 00-4.022 2.916 6.055 6.055 0 00.743 7.097 5.98 5.98 0 00.51 4.91 6.051 6.051 0 006.515 2.9A5.985 5.985 0 0013.5 24a6.056 6.056 0 005.77-4.51 6.034 6.034 0 004.023-2.916 6.052 6.052 0 00-.743-7.097l-.002.002z" />
-              </svg>
-            )}
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${avatar.bg}`}>
+            {avatar.icon}
           </div>
         )}
 
