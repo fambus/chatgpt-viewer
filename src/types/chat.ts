@@ -41,6 +41,36 @@ export interface RawConversation {
   [key: string]: unknown
 }
 
+// Raw Claude export types (matches Claude conversations.json schema)
+
+export interface ClaudeContentBlock {
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'token_budget'
+  text?: string
+  [key: string]: unknown
+}
+
+export interface ClaudeChatMessage {
+  uuid: string
+  text: string
+  content: ClaudeContentBlock[]
+  sender: 'human' | 'assistant'
+  created_at: string
+  updated_at: string
+  attachments: unknown[]
+  files: { file_uuid: string; file_name: string }[]
+  parent_message_uuid: string
+}
+
+export interface ClaudeRawConversation {
+  uuid: string
+  name: string
+  summary: string
+  created_at: string
+  updated_at: string
+  account: { uuid: string }
+  chat_messages: ClaudeChatMessage[]
+}
+
 // Processed types used by the app
 
 export interface ParsedMessage {
@@ -52,6 +82,8 @@ export interface ParsedMessage {
   sourceFile: string
 }
 
+export type Platform = 'chatgpt' | 'claude'
+
 export interface ParsedConversation {
   id: string
   title: string
@@ -59,6 +91,7 @@ export interface ParsedConversation {
   updateTime: number
   gizmoId: string | null
   sourceFile: string
+  platform: Platform
   messages: ParsedMessage[]
 }
 

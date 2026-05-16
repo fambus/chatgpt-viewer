@@ -102,6 +102,7 @@ export default function ChatView() {
               key={msg.id}
               message={msg}
               conversationId={selectedConversation.id}
+              platform={selectedConversation.platform}
               isSelected={selectedMessageIds.has(msg.id)}
               showSourceFile={showSourceFile}
               onToggleSelect={() => toggleMessageSelection(msg.id)}

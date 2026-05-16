@@ -262,7 +262,7 @@ export default function Sidebar() {
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto scrollbar-thin px-2 pb-4">
         {groups.map(group => {
-          const groupKey = group.gizmoId ?? '__general__'
+          const groupKey = group.gizmoId ?? group.label
           const isCollapsed = collapsedGroups.has(groupKey)
           const isProject = group.gizmoId !== null
 

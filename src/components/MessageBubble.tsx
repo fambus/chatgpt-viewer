@@ -1,7 +1,7 @@
 import { memo, useState, useCallback, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { ParsedMessage } from '../types/chat'
+import type { ParsedMessage, Platform } from '../types/chat'
 import { stripCitations } from '../utils/cleanText'
 import type { SyntaxHighlighterProps } from 'react-syntax-highlighter'
 
@@ -26,6 +26,7 @@ function getHighlighter() {
 interface Props {
   message: ParsedMessage
   conversationId: string
+  platform: Platform
   isSelected: boolean
   showSourceFile: boolean
   onToggleSelect: () => void
@@ -160,11 +161,12 @@ const markdownComponents = {
 // Layout: [message content ............................................] [checkbox]
 // Checkbox is ALWAYS on the RIGHT regardless of role (user or assistant).
 // Fades in on hover; stays visible when checked.
-export default memo(function MessageBubble({ message, isSelected, showSourceFile, onToggleSelect, onDelete }: Props) {
+export default memo(function MessageBubble({ message, platform, isSelected, showSourceFile, onToggleSelect, onDelete }: Props) {
   if (message.role === 'system') return null
   if (message.role === 'tool') return <ToolPill name={message.authorName} />
 
   const isUser = message.role === 'user'
+  const isClaude = platform === 'claude'
   const cleanedText = stripCitations(message.text)
 
   return (
@@ -175,10 +177,16 @@ export default memo(function MessageBubble({ message, isSelected, showSourceFile
 
         {/* Assistant avatar */}
         {!isUser && (
-          <div className="w-7 h-7 rounded-full bg-[#10a37f] flex items-center justify-center flex-shrink-0 mt-0.5">
-            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M22.282 9.821a5.985 5.985 0 00-.516-4.91 6.046 6.046 0 00-6.51-2.9A6.065 6.065 0 0011.5.5a6.058 6.058 0 00-5.77 4.51 6.03 6.03 0 00-4.022 2.916 6.055 6.055 0 00.743 7.097 5.98 5.98 0 00.51 4.91 6.051 6.051 0 006.515 2.9A5.985 5.985 0 0013.5 24a6.056 6.056 0 005.77-4.51 6.034 6.034 0 004.023-2.916 6.052 6.052 0 00-.743-7.097l-.002.002z" />
-            </svg>
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${isClaude ? 'bg-[#D97757]' : 'bg-[#10a37f]'}`}>
+            {isClaude ? (
+              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M4.709 15.955l4.72-2.755.08-.046 2.426-1.466-.08.046-4.72 2.755L4.71 15.955zm8.837-5.17l-1.085.654-.238-.396 1.085-.654.238.396zm-5.752 5.078l5.066-2.893.238.396-5.066 2.893-.238-.396zM14.118 6.74L8.093 10.283l-.238-.396 6.025-3.543.238.396zm3.167 5.736l-1.205.694-.238-.396 1.205-.694.238.396zM6.57 14.792l7.27-4.22.238.396-7.27 4.22-.238-.396z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M22.282 9.821a5.985 5.985 0 00-.516-4.91 6.046 6.046 0 00-6.51-2.9A6.065 6.065 0 0011.5.5a6.058 6.058 0 00-5.77 4.51 6.03 6.03 0 00-4.022 2.916 6.055 6.055 0 00.743 7.097 5.98 5.98 0 00.51 4.91 6.051 6.051 0 006.515 2.9A5.985 5.985 0 0013.5 24a6.056 6.056 0 005.77-4.51 6.034 6.034 0 004.023-2.916 6.052 6.052 0 00-.743-7.097l-.002.002z" />
+              </svg>
+            )}
           </div>
         )}
 

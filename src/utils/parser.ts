@@ -61,8 +61,19 @@ function parseConversation(raw: RawConversation, sourceFile: string): ParsedConv
     updateTime: raw.update_time,
     gizmoId: raw.gizmo_id,
     sourceFile,
+    platform: 'chatgpt',
     messages: extractMessages(raw.mapping, raw.current_node, sourceFile),
   }
+}
+
+/**
+ * Detect if a JSON array looks like ChatGPT conversations.
+ * ChatGPT conversations have `conversation_id`, `mapping`, and `current_node`.
+ */
+export function isChatGPTFormat(data: unknown[]): boolean {
+  if (data.length === 0) return false
+  const first = data[0] as Record<string, unknown>
+  return 'conversation_id' in first && 'mapping' in first && 'current_node' in first
 }
 
 /**

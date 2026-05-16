@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
-import type { RawConversation } from '../types/chat'
-import { parseAndDeduplicateConversations, type TaggedRawArray } from '../utils/parser'
+import type { RawConversation, ClaudeRawConversation, ParsedConversation } from '../types/chat'
+import { parseAndDeduplicateConversations, isChatGPTFormat, type TaggedRawArray } from '../utils/parser'
+import { isClaudeFormat, parseClaudeConversations } from '../utils/claudeParser'
 import { useChat } from '../store/ChatContext'
 
 export default function FileUploader() {
@@ -9,23 +10,41 @@ export default function FileUploader() {
 
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return
-    const tagged: TaggedRawArray[] = []
+
+    const chatgptTagged: TaggedRawArray[] = []
+    const claudeTagged: { fileName: string; conversations: ClaudeRawConversation[] }[] = []
 
     for (const file of Array.from(files)) {
       try {
         const text = await file.text()
-        const parsed = JSON.parse(text) as RawConversation[]
-        if (Array.isArray(parsed)) {
-          tagged.push({ fileName: file.name, conversations: parsed })
+        const parsed = JSON.parse(text) as unknown[]
+        if (!Array.isArray(parsed) || parsed.length === 0) continue
+
+        if (isChatGPTFormat(parsed)) {
+          chatgptTagged.push({ fileName: file.name, conversations: parsed as RawConversation[] })
+        } else if (isClaudeFormat(parsed)) {
+          claudeTagged.push({ fileName: file.name, conversations: parsed as ClaudeRawConversation[] })
+        } else {
+          console.warn(`${file.name}: unrecognized format`)
         }
       } catch (e) {
         console.error(`Failed to parse ${file.name}:`, e)
       }
     }
 
-    if (tagged.length > 0) {
-      const conversations = parseAndDeduplicateConversations(tagged)
-      setConversations(conversations)
+    const allConversations: ParsedConversation[] = []
+
+    if (chatgptTagged.length > 0) {
+      allConversations.push(...parseAndDeduplicateConversations(chatgptTagged))
+    }
+    if (claudeTagged.length > 0) {
+      allConversations.push(...parseClaudeConversations(claudeTagged))
+    }
+
+    if (allConversations.length > 0) {
+      // Sort combined results by update time
+      allConversations.sort((a, b) => b.updateTime - a.updateTime)
+      setConversations(allConversations)
     }
   }, [setConversations])
 
@@ -49,7 +68,9 @@ export default function FileUploader() {
         <p className="text-lg text-gray-300 mb-2">
           Drop your <code className="bg-gray-700 px-2 py-0.5 rounded text-sm">conversations.json</code> files here
         </p>
-        <p className="text-sm text-gray-500">or click to browse. You can upload multiple files.</p>
+        <p className="text-sm text-gray-500">
+          Supports <strong className="text-gray-400">ChatGPT</strong> and <strong className="text-gray-400">Claude</strong> exports. Upload multiple files.
+        </p>
         <input
           ref={inputRef}
           type="file"

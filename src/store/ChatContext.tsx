@@ -324,7 +324,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const groupMap = new Map<string, ParsedConversation[]>()
 
     for (const conv of filteredConversations) {
-      const key = conv.gizmoId?.startsWith('g-p-') ? conv.gizmoId : '__general__'
+      let key: string
+      if (conv.platform === 'claude') {
+        key = '__claude__'
+      } else if (conv.gizmoId?.startsWith('g-p-')) {
+        key = conv.gizmoId
+      } else {
+        key = '__general__'
+      }
       if (!groupMap.has(key)) groupMap.set(key, [])
       groupMap.get(key)!.push(conv)
     }
@@ -335,6 +342,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (general) {
       groups.push({ gizmoId: null, label: 'General', conversations: general })
       groupMap.delete('__general__')
+    }
+
+    const claude = groupMap.get('__claude__')
+    if (claude) {
+      groups.push({ gizmoId: null, label: 'Claude', conversations: claude })
+      groupMap.delete('__claude__')
     }
 
     for (const [gizmoId, convs] of groupMap) {
